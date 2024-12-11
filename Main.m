@@ -33,7 +33,7 @@ for year_idx = 1:length(years)
     
     % Calculate centrality measures
     in_degree_centrality = indegree(G); % Standard in-degree centrality
-    closeness_centrality = centrality(G, 'incloseness', 'Cost', 1 ./ G.Edges.Weight); % Inward closeness
+    closeness_centrality = centrality(G, 'incloseness', 'Cost', 1 ./ G.Edges.Weight); %closeness
     weighted_in_degree = sum(adjacency(G, 'weighted'), 1)'; % Weighted in-degree centrality
     
     % Analyze communities
