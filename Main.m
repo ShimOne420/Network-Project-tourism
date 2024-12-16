@@ -1,117 +1,112 @@
-clear all;
+clear;
 clc;
 
 % Load the data from Excel
 data = readtable('Database-Tourism.xlsx');
 
-% Extract unique years from the data
-years = unique(data.Year);
+% Prompt user to select a specific year for analysis
+year = input('Enter the year for analysis: ');
 
-% Initialize a table to store centrality trends over time
-centrality_trends = table();
+% Filter data for the specific year selected by the user
+year_data = data(data.Year == year, :);
 
-% Loop through each year for time-based analysis
-for year_idx = 1:length(years)
-    year = years(year_idx);
-    
+% Populate edge lists for the selected year
+source_nodes = year_data.Continent;
+target_nodes = year_data.Country;
+weights = year_data.Inbound_Flow;
+
+% Create the directed graph for the specific year
+G = digraph(source_nodes, target_nodes, weights);
+
+% Calculate centrality measures for the selected year
+in_degree_centrality = indegree(G);
+out_degree_centrality = outdegree(G);
+weighted_in_degree = sum(adjacency(G, 'weighted'), 1)';
+betweenness_centrality = centrality(G, 'betweenness');
+
+% Identify the nodes with the highest and lowest weighted in-degree
+[~, max_idx] = max(weighted_in_degree);
+[~, min_idx] = min(weighted_in_degree);
+highest_weighted_node = G.Nodes.Name(max_idx);
+lowest_weighted_node = G.Nodes.Name(min_idx);
+
+% Display results for the selected year
+fprintf('Analysis for the year %d:\n', year);
+fprintf('Node with the highest weighted in-degree: %s\n', highest_weighted_node{1});
+fprintf('Node with the lowest weighted in-degree: %s\n', lowest_weighted_node{1});
+
+% Plot individual graphs for the selected year
+figure;
+histogram(in_degree_centrality, 'FaceColor', 'g');
+title(['In-Degree Centrality Distribution - Year ', num2str(year)]);
+xlabel('In-Degree Centrality');
+ylabel('Frequency');
+
+figure;
+histogram(out_degree_centrality, 'FaceColor', 'b');
+title(['Out-Degree Centrality Distribution - Year ', num2str(year)]);
+xlabel('Out-Degree Centrality');
+ylabel('Frequency');
+
+figure;
+histogram(weighted_in_degree, 'FaceColor', 'r');
+title(['Weighted In-Degree Distribution - Year ', num2str(year)]);
+xlabel('Weighted In-Degree Centrality');
+ylabel('Frequency');
+
+figure;
+histogram(betweenness_centrality, 'FaceColor', 'm');
+title(['Betweenness Centrality Distribution - Year ', num2str(year)]);
+xlabel('Betweenness Centrality');
+ylabel('Frequency');
+
+% Plot community structure for the selected year
+communities = conncomp(G, 'Type', 'weak');
+figure;
+h = plot(G);
+h.NodeCData = communities;
+colormap(jet);
+colorbar;
+title(['Communities in the Tourism Network - Year ', num2str(year)]);
+
+% Time-Based Trends of Centrality Measures
+unique_years = unique(data.Year);
+time_based_trends = table();
+
+for y = unique_years'
     % Filter data for the current year
-    year_data = data(data.Year == year, :);
+    yearly_data = data(data.Year == y, :);
     
     % Populate edge lists
-    source_nodes = {}; % Continent sources
-    target_nodes = {}; % Country destinations
-    weights = [];      % Inbound flows
+    yearly_source_nodes = yearly_data.Continent;
+    yearly_target_nodes = yearly_data.Country;
+    yearly_weights = yearly_data.Inbound_Flow;
     
-    for i = 1:height(year_data)
-        source_nodes = [source_nodes; year_data.Continent{i}];
-        target_nodes = [target_nodes; year_data.Country{i}];
-        weights = [weights; year_data.Inbound_Flow(i)];
-    end
-    
-    % Create the directed graph
-    G = digraph(source_nodes, target_nodes, weights);
+    % Create the graph
+    yearly_G = digraph(yearly_source_nodes, yearly_target_nodes, yearly_weights);
     
     % Calculate centrality measures
-    in_degree_centrality = indegree(G); % Standard in-degree centrality
-    closeness_centrality = centrality(G, 'incloseness', 'Cost', 1 ./ G.Edges.Weight); % Closeness centrality
-    weighted_in_degree = sum(adjacency(G, 'weighted'), 1)'; % Weighted in-degree centrality
-    betweenness_centrality = centrality(G, 'betweenness', 'Cost', 1 ./ G.Edges.Weight); % Betweenness centrality
+    yearly_in_degree = mean(indegree(yearly_G));
+    yearly_out_degree = mean(outdegree(yearly_G));
+    yearly_weighted_in_degree = mean(sum(adjacency(yearly_G, 'weighted'), 1));
+    yearly_betweenness = mean(centrality(yearly_G, 'betweenness'));
     
-    % Check for strongly connected subcomponents and perform community analysis
-    strong_components = conncomp(G, 'Type', 'strong');
-    num_strong_components = max(strong_components); % Number of strongly connected components
-    
-    % Perform community analysis for each strongly connected component
-    component_communities = cell(num_strong_components, 1);
-    for comp_idx = 1:num_strong_components
-        % Extract subgraph for the current strongly connected component
-        subgraph_nodes = find(strong_components == comp_idx);
-        if numel(subgraph_nodes) > 1 % Only analyze components with more than one node
-            subgraph = subgraph(G, subgraph_nodes);
-            % Perform community detection on the subgraph
-            component_communities{comp_idx} = conncomp(subgraph, 'Type', 'weak');
-        end
-    end
-    
-    % Store centrality results for time-based trends
-    centrality_trends = [centrality_trends; 
-        table(year, {in_degree_centrality}, {weighted_in_degree}, {closeness_centrality}, {betweenness_centrality}, ...
-              {component_communities}, 'VariableNames', {'Year', 'InDegree', 'WeightedDegree', 'Closeness', 'Betweenness', 'Communities'})];
-    
-    % Visualization for the current year
-    figure;
-    
-    % Subplot 1: In-Degree Centrality Distribution
-    subplot(5, 1, 1);
-    histogram(in_degree_centrality, 'FaceColor', 'g');
-    title(['In-Degree Centrality Distribution - Year ', num2str(year)]);
-    xlabel('In-Degree Centrality');
-    ylabel('Frequency');
-    
-    % Subplot 2: Weighted Degree Centrality Distribution
-    subplot(5, 1, 2);
-    histogram(weighted_in_degree, 'FaceColor', 'b');
-    title(['Weighted In-Degree Distribution - Year ', num2str(year)]);
-    xlabel('Weighted Degree Centrality');
-    ylabel('Frequency');
-    
-    % Subplot 3: Closeness Centrality Distribution
-    subplot(5, 1, 3);
-    histogram(closeness_centrality, 'FaceColor', 'r');
-    title(['Closeness Centrality Distribution - Year ', num2str(year)]);
-    xlabel('Closeness Centrality');
-    ylabel('Frequency');
-    
-    % Subplot 4: Betweenness Centrality Distribution
-    subplot(5, 1, 4);
-    histogram(betweenness_centrality, 'FaceColor', 'm');
-    title(['Betweenness Centrality Distribution - Year ', num2str(year)]);
-    xlabel('Betweenness Centrality');
-    ylabel('Frequency');
-    
-    % Subplot 5: Community Structure Visualization
-    subplot(5, 1, 5);
-    h = plot(G);
-    h.NodeCData = strong_components; % Color nodes by their strong component membership
-    colormap(parula);
-    colorbar;
-    title(['Communities in Strongly Connected Subcomponents - Year ', num2str(year)]);
+    % Store results
+    time_based_trends = [time_based_trends; table(y, yearly_in_degree, yearly_out_degree, ...
+        yearly_weighted_in_degree, yearly_betweenness, 'VariableNames', ...
+        {'Year', 'InDegree', 'OutDegree', 'WeightedInDegree', 'Betweenness'})];
 end
 
-% Time-Based Trend Visualization
+% Plot Time-Based Trends
 figure;
 hold on;
-for year_idx = 1:length(years)
-    % Plot average values for each centrality measure over time
-    plot(years(year_idx), mean(centrality_trends.InDegree{year_idx}), 'g-o', 'DisplayName', 'In-Degree Centrality');
-    plot(years(year_idx), mean(centrality_trends.WeightedDegree{year_idx}), 'b-o', 'DisplayName', 'Weighted Degree Centrality');
-    plot(years(year_idx), mean(centrality_trends.Closeness{year_idx}), 'r-o', 'DisplayName', 'Closeness Centrality');
-    plot(years(year_idx), mean(centrality_trends.Betweenness{year_idx}), 'm-o', 'DisplayName', 'Betweenness Centrality');
-end
+plot(time_based_trends.Year, time_based_trends.InDegree, 'g-o', 'DisplayName', 'In-Degree Centrality');
+plot(time_based_trends.Year, time_based_trends.OutDegree, 'b-o', 'DisplayName', 'Out-Degree Centrality');
+plot(time_based_trends.Year, time_based_trends.WeightedInDegree, 'r-o', 'DisplayName', 'Weighted In-Degree Centrality');
+plot(time_based_trends.Year, time_based_trends.Betweenness, 'm-o', 'DisplayName', 'Betweenness Centrality');
 hold off;
 xlabel('Year');
 ylabel('Centrality Measure (Average)');
 title('Time-Based Trends of Centrality Measures');
 legend('show');
 grid on;
-
